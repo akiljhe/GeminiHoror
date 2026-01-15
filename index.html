@@ -51,7 +51,8 @@
             <p>TUJUAN:</p>
             <p>1. Cari <b>KUNCI BERKARAT</b> (Lokasi Acak)</p>
             <p>2. Lari ke <b>PINTU KELUAR</b> (Lokasi Acak)</p>
-            <p style="color:#a00; font-size:12px; margin-top:10px;">*Hati-hati, dinding berdarah ini menyembunyikan sesuatu.*</p>
+            <p style="color:#a00; font-size:12px; margin-top:10px;">*TIPS: Peta cukup luas (50x50).*</p>
+            <p style="color:#a00; font-size:12px;">*TIPS: Lari (Shift) akan memancing hantu.*</p>
         </div>
         <p style="margin-top: 10px;">Peringatan: Mengandung suara keras.</p>
         <div class="btn" id="start-btn">MASUKI KEGELAPAN</div>
@@ -399,7 +400,7 @@ const Game = {
         document.body.appendChild(this.renderer.domElement);
         this.setupControls();
         this.generateTexture();
-        this.mapData = this.generateMaze(75, 75);
+        this.mapData = this.generateMaze(50, 50);
         this.buildLevel();
         this.enemy = new Enemy(this.scene, this.mapData);
         // Spawn musuh di awal (Jauh, Pasif)
