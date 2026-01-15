@@ -7,16 +7,47 @@
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; user-select: none; }
         
-        /* UI Layer */
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
         
-        /* Crosshair */
         #crosshair {
             position: absolute; top: 50%; left: 50%; width: 4px; height: 4px;
             background: rgba(255, 255, 255, 0.5); border-radius: 50%; transform: translate(-50%, -50%);
         }
 
-        /* Vignette & Grain (Atmosphere) */
+        #minimap-container {
+            position: absolute; top: 20px; right: 20px;
+            width: 150px; height: 150px;
+            background: rgba(0, 20, 0, 0.8);
+            border: 2px solid #333;
+            border-radius: 50%;
+            overflow: hidden;
+            opacity: 0.8;
+        }
+        #minimap {
+            width: 100%; height: 100%;
+        }
+        .minimap-label {
+            position: absolute; top: 180px; right: 20px; color: #0f0; font-size: 10px; text-align: center; width: 150px;
+        }
+
+        #stamina-container {
+            position: absolute; bottom: 30px; left: 30px;
+            width: 200px; height: 8px;
+            background: rgba(20, 0, 0, 0.6);
+            border: 1px solid #444;
+            border-radius: 4px;
+        }
+        #stamina-bar {
+            width: 100%; height: 100%;
+            background-color: #a00;
+            box-shadow: 0 0 5px #f00;
+            transition: width 0.1s linear;
+        }
+        #stamina-label {
+            position: absolute; bottom: 42px; left: 30px;
+            color: #ccc; font-size: 12px; letter-spacing: 1px;
+        }
+
         #vignette {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: radial-gradient(circle, transparent 50%, black 150%);
@@ -28,7 +59,6 @@
             pointer-events: none; z-index: 6; opacity: 0.4;
         }
 
-        /* Start Screen */
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #050505; color: #a0a0a0; display: flex; flex-direction: column;
@@ -41,20 +71,18 @@
             transition: all 0.3s; background: rgba(0,0,0,0.8); margin-top: 20px;
         }
         .btn:hover { background: #200; border-color: #800; }
+        .objective-list { text-align: left; margin-top: 20px; font-size: 14px; color: #888; border: 1px solid #333; padding: 20px; }
         
-        /* Subtitles */
         #subtitle {
             position: absolute; bottom: 15%; width: 100%; text-align: center;
             color: #fff; font-size: 18px; text-shadow: 0 2px 2px #000; opacity: 0; transition: opacity 1s;
         }
 
-        /* Interaction Prompt */
         #interact-prompt {
             position: absolute; top: 60%; width: 100%; text-align: center;
             color: #ddd; font-size: 14px; opacity: 0;
         }
 
-        /* Jumpscare Overlay */
         #scare-overlay {
             display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: black; z-index: 999; justify-content: center; align-items: center;
@@ -79,7 +107,6 @@
             100% { box-shadow: inset 0 0 0 0 rgba(255,0,0,0); }
         }
     </style>
-    <!-- Three.js CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
 </head>
@@ -87,30 +114,41 @@
 
     <div id="start-screen">
         <h1>GEMA PENDERITAAN</h1>
-        <p>Peringatan: Mengandung suara keras dan lampu berkedip.</p>
-        <p>Gunakan Headphone untuk pengalaman 3D Audio.</p>
+        <div class="objective-list">
+            <p>TUJUAN:</p>
+            <p>1. Cari <b>KUNCI BERKARAT</b> (Lokasi tidak diketahui)</p>
+            <p>2. Lari ke <b>PINTU KELUAR</b> untuk selamat</p>
+            <p style="color:#a00; font-size:12px; margin-top:10px;">*TIPS: Lari (Shift) akan memancing hantu.*</p>
+            <p style="color:#a00; font-size:12px;">*TIPS: Hantu bisa berpindah tempat (Teleport).*</p>
+        </div>
+        <p style="margin-top: 10px;">Peringatan: Mengandung suara keras.</p>
         <div class="btn" id="start-btn">MASUKI KEGELAPAN</div>
-        <p style="font-size: 12px; margin-top: 20px; color: #555;">Kontrol: WASD (Gerak) | Mouse (Lihat) | E (Interaksi)</p>
+        <p style="font-size: 12px; margin-top: 20px; color: #555;">WASD: Gerak | SHIFT: Lari | E: Interaksi</p>
     </div>
 
     <div id="vignette"></div>
     <div id="grain"></div>
     <div id="ui-layer">
+        <div id="minimap-container">
+            <canvas id="minimap" width="150" height="150"></canvas>
+        </div>
+        <div class="minimap-label">RADAR GERAK</div>
+        
+        <div id="stamina-label">STAMINA</div>
+        <div id="stamina-container">
+            <div id="stamina-bar"></div>
+        </div>
+
         <div id="crosshair"></div>
         <div id="subtitle"></div>
         <div id="interact-prompt">[E] Periksa</div>
     </div>
 
     <div id="scare-overlay">
-        <!-- Procedurally drawn scary face will be put here via canvas to dataURL -->
         <img id="scare-face" src="" alt="SCARE">
     </div>
 
 <script>
-/**
- * AUDIO ENGINE (Procedural Horror Sound Synthesis)
- * Menghasilkan suara tanpa file eksternal menggunakan Web Audio API
- */
 const AudioEngine = {
     ctx: null,
     masterGain: null,
@@ -122,130 +160,85 @@ const AudioEngine = {
         this.masterGain.connect(this.ctx.destination);
     },
 
-    // Suara dengungan rendah (Atmosphere)
     playAmbience: function() {
         if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         osc.type = 'sawtooth';
         osc.frequency.value = 50;
-        
-        // Filter LFO untuk membuat suara bergelombang menyeramkan
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
         filter.frequency.value = 100;
-
         const lfo = this.ctx.createOscillator();
-        lfo.type = 'sine';
-        lfo.frequency.value = 0.1;
+        lfo.type = 'sine'; lfo.frequency.value = 0.1;
         const lfoGain = this.ctx.createGain();
         lfoGain.gain.value = 50;
-
-        lfo.connect(lfoGain);
-        lfoGain.connect(filter.frequency);
-
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.masterGain);
-
+        lfo.connect(lfoGain); lfoGain.connect(filter.frequency);
+        osc.connect(filter); filter.connect(gain); gain.connect(this.masterGain);
         gain.gain.setValueAtTime(0, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(0.15, this.ctx.currentTime + 5);
-        
-        osc.start();
-        lfo.start();
+        osc.start(); lfo.start();
     },
 
-    // Suara langkah kaki
-    playStep: function() {
+    playStep: function(speed = 1.0) {
         if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
         const filter = this.ctx.createBiquadFilter();
-        
-        osc.type = 'square'; // Crunch sound
-        filter.type = 'lowpass';
-        filter.frequency.value = 150;
-        
-        osc.connect(filter);
-        filter.connect(gain);
-        gain.connect(this.masterGain);
-        
+        osc.type = 'square'; filter.type = 'lowpass'; filter.frequency.value = 150;
+        osc.connect(filter); filter.connect(gain); gain.connect(this.masterGain);
         osc.frequency.setValueAtTime(80, this.ctx.currentTime);
         gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-        
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + (0.1 / speed));
+        osc.start(); osc.stop(this.ctx.currentTime + (0.15 / speed));
     },
 
-    // Suara Jumpscare (High pitch scream + Noise)
     playScream: function() {
         if (!this.ctx) return;
-        
-        // Noise buffer
         const bufferSize = this.ctx.sampleRate * 2;
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
-        
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
         const noise = this.ctx.createBufferSource();
         noise.buffer = buffer;
-        const noiseGain = this.ctx.createGain();
-        noiseGain.gain.value = 1.0; // Loud!
-        noise.connect(noiseGain);
-        noiseGain.connect(this.masterGain);
-        
-        // Screeching oscillator
+        const noiseGain = this.ctx.createGain(); noiseGain.gain.value = 1.0;
+        noise.connect(noiseGain); noiseGain.connect(this.masterGain);
         const osc = this.ctx.createOscillator();
         osc.type = 'sawtooth';
         osc.frequency.setValueAtTime(200, this.ctx.currentTime);
         osc.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.2);
-        osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 1.5); // Frequency drop
-        
-        const oscGain = this.ctx.createGain();
-        oscGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
-        
-        // Distortion
-        const shaper = this.ctx.createWaveShaper();
-        shaper.curve = this.makeDistortionCurve(400);
-        
-        osc.connect(shaper);
-        shaper.connect(oscGain);
-        oscGain.connect(this.masterGain);
-        
-        noise.start();
-        osc.start();
-        osc.stop(this.ctx.currentTime + 2);
+        osc.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 1.5);
+        const oscGain = this.ctx.createGain(); oscGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
+        const shaper = this.ctx.createWaveShaper(); shaper.curve = this.makeDistortionCurve(400);
+        osc.connect(shaper); shaper.connect(oscGain); oscGain.connect(this.masterGain);
+        noise.start(); osc.start(); osc.stop(this.ctx.currentTime + 2);
     },
 
-    playHeartbeat: function(rate = 1) {
+    playHeartbeat: function(rate = 1.0) {
         if (!this.ctx) return;
         const osc = this.ctx.createOscillator();
         const gain = this.ctx.createGain();
-        
-        osc.type = 'sine';
-        osc.frequency.value = 30; // Deep bass thud
-        
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-        
+        osc.type = 'sine'; osc.frequency.value = 30 * rate;
+        osc.connect(gain); gain.connect(this.masterGain);
         gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
-        
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.2);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+    },
+    
+    playStatic: function(vol) {
+        if (!this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * 0.5;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * vol;
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        noise.connect(this.masterGain);
+        noise.start();
     },
 
-    // Helper untuk distorsi
     makeDistortionCurve: function(amount) {
-        let k = typeof amount === 'number' ? amount : 50,
-            n_samples = 44100,
-            curve = new Float32Array(n_samples),
-            deg = Math.PI / 180,
-            i = 0,
-            x;
+        let k = amount, n_samples = 44100, curve = new Float32Array(n_samples), deg = Math.PI / 180, i = 0, x;
         for ( ; i < n_samples; ++i ) {
             x = i * 2 / n_samples - 1;
             curve[i] = ( 3 + k ) * x * 20 * deg / ( Math.PI + k * Math.abs(x) );
@@ -254,48 +247,246 @@ const AudioEngine = {
     }
 };
 
-/**
- * GAME LOGIC
- */
+class Enemy {
+    constructor(scene, mapData) {
+        this.scene = scene;
+        this.mapData = mapData;
+        
+        const geo = new THREE.CylinderGeometry(0.4, 0.4, 1.8, 8);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        this.mesh = new THREE.Mesh(geo, mat);
+        
+        const eyeGeo = new THREE.SphereGeometry(0.1, 8, 8);
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+        this.eyeLeft = new THREE.Mesh(eyeGeo, eyeMat);
+        this.eyeRight = new THREE.Mesh(eyeGeo, eyeMat);
+        this.eyeLeft.position.set(-0.15, 0.5, 0.35);
+        this.eyeRight.position.set(0.15, 0.5, 0.35);
+        this.mesh.add(this.eyeLeft);
+        this.mesh.add(this.eyeRight);
+        
+        this.mesh.position.set(-10, -10, -10); 
+        this.scene.add(this.mesh);
+
+        this.speed = 3.2; 
+        this.active = false;
+        this.path = [];
+        this.pathTimer = 0;
+        
+        this.teleportTimer = 0;
+        this.randomTarget = null;
+        this.state = 'ROAMING';
+    }
+
+    spawn(x, z) {
+        this.mesh.position.set(x * 2, 1, z * 2);
+        this.activate();
+    }
+
+    activate() {
+        this.active = true;
+        this.mesh.visible = true;
+    }
+
+    update(dt, playerPos, playerIsSprinting) {
+        if(!this.active) return;
+
+        this.teleportTimer += dt;
+        if(this.teleportTimer > 15) {
+            this.teleport(playerPos);
+            this.teleportTimer = 0;
+        }
+
+        let currentTarget = null;
+        
+        if(playerIsSprinting) {
+            this.state = 'CHASING';
+            currentTarget = playerPos;
+            this.speed = 4.2;
+            this.mesh.lookAt(playerPos.x, 1, playerPos.z);
+        } else {
+            this.state = 'ROAMING';
+            this.speed = 2.5;
+            
+            if(!this.randomTarget || this.path.length === 0) {
+                this.pickRandomTarget();
+            }
+            currentTarget = this.randomTarget;
+            
+            if(this.path.length > 0) {
+                const next = this.path[0];
+                this.mesh.lookAt(next.x * 2, 1, next.z * 2);
+            }
+        }
+
+        this.pathTimer += dt;
+        if(this.pathTimer > 0.5) {
+            this.pathTimer = 0;
+            if(currentTarget) this.calculatePath(currentTarget);
+        }
+
+        if(this.path.length > 0) {
+            const nextNode = this.path[0];
+            const targetX = nextNode.x * 2;
+            const targetZ = nextNode.z * 2;
+            
+            const dir = new THREE.Vector3(targetX - this.mesh.position.x, 0, targetZ - this.mesh.position.z);
+            const dist = dir.length();
+            
+            if(dist < 0.2) {
+                this.path.shift(); 
+            } else {
+                dir.normalize();
+                this.mesh.position.x += dir.x * this.speed * dt;
+                this.mesh.position.z += dir.z * this.speed * dt;
+            }
+        } 
+
+        const distToPlayer = this.mesh.position.distanceTo(playerPos);
+        if(distToPlayer < 8) {
+            const vol = 1 - (distToPlayer / 8);
+            if(Math.random() < 0.1) AudioEngine.playStatic(vol * 0.2);
+        }
+
+        if(distToPlayer < 1.0) {
+            Game.triggerEvent(3);
+        }
+    }
+
+    teleport(playerPos) {
+        let attempts = 0;
+        let valid = false;
+        let newX, newZ;
+        
+        while(!valid && attempts < 20) {
+            const rZ = Math.floor(Math.random() * this.mapData.length);
+            const rX = Math.floor(Math.random() * this.mapData[0].length);
+            
+            if(this.mapData[rZ][rX] !== 1) {
+                const dx = (rX * 2) - playerPos.x;
+                const dz = (rZ * 2) - playerPos.z;
+                const dist = Math.sqrt(dx*dx + dz*dz);
+                
+                if(dist > 8 && dist < 30) {
+                    newX = rX * 2;
+                    newZ = rZ * 2;
+                    valid = true;
+                }
+            }
+            attempts++;
+        }
+
+        if(valid) {
+            this.mesh.position.set(newX, 1, newZ);
+            this.path = [];
+            this.randomTarget = null;
+            AudioEngine.playStatic(0.5);
+        }
+    }
+
+    pickRandomTarget() {
+        let attempts = 0;
+        while(attempts < 10) {
+             const rZ = Math.floor(Math.random() * this.mapData.length);
+             const rX = Math.floor(Math.random() * this.mapData[0].length);
+             if(this.mapData[rZ][rX] !== 1) {
+                 this.randomTarget = new THREE.Vector3(rX * 2, 1, rZ * 2);
+                 return;
+             }
+             attempts++;
+        }
+    }
+
+    calculatePath(targetPos) {
+        const startX = Math.round(this.mesh.position.x / 2);
+        const startZ = Math.round(this.mesh.position.z / 2);
+        const endX = Math.round(targetPos.x / 2);
+        const endZ = Math.round(targetPos.z / 2);
+
+        if(startX < 0 || startZ < 0 || startX >= this.mapData[0].length || startZ >= this.mapData.length) return;
+
+        const queue = [{x: startX, z: startZ, path: []}];
+        const visited = new Set();
+        visited.add(`${startX},${startZ}`);
+
+        let iterations = 0;
+        while(queue.length > 0) {
+            iterations++;
+            if(iterations > 400) break; 
+
+            const {x, z, path} = queue.shift();
+
+            if(x === endX && z === endZ) {
+                this.path = path;
+                return;
+            }
+
+            const neighbors = [
+                {x: x+1, z: z}, {x: x-1, z: z},
+                {x: x, z: z+1}, {x: x, z: z-1}
+            ];
+
+            for(const n of neighbors) {
+                if(n.z >= 0 && n.z < this.mapData.length && 
+                   n.x >= 0 && n.x < this.mapData[0].length &&
+                   this.mapData[n.z][n.x] !== 1) { 
+                    
+                    const key = `${n.x},${n.z}`;
+                    if(!visited.has(key)) {
+                        visited.add(key);
+                        const newPath = [...path, {x: n.x, z: n.z}];
+                        if(newPath.length < 20) { 
+                            queue.push({x: n.x, z: n.z, path: newPath});
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 const Game = {
     scene: null, camera: null, renderer: null, controls: null,
     moveForward: false, moveBackward: false, moveLeft: false, moveRight: false,
     raycaster: new THREE.Raycaster(),
     
-    // Game Objects
+    walkSpeed: 5.0, 
+    runSpeed: 10.0, 
+    currentSpeed: 5.0,
+    isSprinting: false,
+    
+    stamina: 100,
+    maxStamina: 100,
+    
     flashlight: null,
     walls: [],
+    enemy: null,
     
-    // State
     isRunning: false,
     sanity: 100,
     hasKey: false,
     storyStep: 0,
     
     init: function() {
-        // Init Three.js
         this.scene = new THREE.Scene();
-        this.scene.fog = new THREE.FogExp2(0x050505, 0.15); // Kabut tebal
+        this.scene.fog = new THREE.FogExp2(0x050505, 0.15); 
 
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: false }); // Disable antialias for gritty look
+        this.renderer = new THREE.WebGLRenderer({ antialias: false });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(this.renderer.domElement);
 
-        // Input
         this.setupControls();
-        
-        // Level
-        this.generateTexture(); // Buat tekstur dinding
+        this.generateTexture();
         this.buildLevel();
         
-        // Lighting
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.02); // Sangat gelap
+        this.enemy = new Enemy(this.scene, this.mapData);
+        
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.02);
         this.scene.add(ambientLight);
         
-        // Senter
         this.flashlight = new THREE.SpotLight(0xffddaa, 1.5, 30, Math.PI / 5, 0.5, 1);
         this.flashlight.position.set(0, 0, 0);
         this.flashlight.castShadow = true;
@@ -304,14 +495,12 @@ const Game = {
         this.camera.add(this.flashlight.target);
         this.scene.add(this.camera);
 
-        // Resize handler
         window.addEventListener('resize', () => {
             this.camera.aspect = window.innerWidth / window.innerHeight;
             this.camera.updateProjectionMatrix();
             this.renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Loop
         this.animate();
     },
 
@@ -324,6 +513,8 @@ const Game = {
                 case 'KeyA': this.moveLeft = true; break;
                 case 'KeyS': this.moveBackward = true; break;
                 case 'KeyD': this.moveRight = true; break;
+                case 'ShiftLeft': 
+                case 'ShiftRight': this.isSprinting = true; break;
                 case 'KeyE': this.interact(); break;
             }
         };
@@ -333,6 +524,8 @@ const Game = {
                 case 'KeyA': this.moveLeft = false; break;
                 case 'KeyS': this.moveBackward = false; break;
                 case 'KeyD': this.moveRight = false; break;
+                case 'ShiftLeft': 
+                case 'ShiftRight': this.isSprinting = false; break;
             }
         };
         document.addEventListener('keydown', onKeyDown);
@@ -343,35 +536,22 @@ const Game = {
     floorTexture: null,
 
     generateTexture: function() {
-        // Procedural Grunge Texture
         const canvas = document.createElement('canvas');
         canvas.width = 512; canvas.height = 512;
         const ctx = canvas.getContext('2d');
-        
-        // Noise
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(0,0,512,512);
+        ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,512,512);
         for(let i=0; i<50000; i++) {
             ctx.fillStyle = Math.random() > 0.5 ? '#222' : '#111';
             ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
         }
-        
-        // Stains
         for(let i=0; i<20; i++) {
-            const x = Math.random()*512;
-            const y = Math.random()*512;
-            const r = Math.random()*50 + 20;
+            const x = Math.random()*512; const y = Math.random()*512; const r = Math.random()*50 + 20;
             const gr = ctx.createRadialGradient(x,y,0,x,y,r);
-            gr.addColorStop(0, 'rgba(0,0,0,0.5)');
-            gr.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = gr;
-            ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+            gr.addColorStop(0, 'rgba(0,0,0,0.5)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
         }
-
         this.wallTexture = new THREE.CanvasTexture(canvas);
         this.floorTexture = new THREE.CanvasTexture(canvas);
-        
-        // Generate Scary Face for Jumpscare Overlay
         this.generateScaryFace();
     },
 
@@ -380,50 +560,52 @@ const Game = {
         c.width = 400; c.height = 400;
         const ctx = c.getContext('2d');
         ctx.fillStyle = 'black'; ctx.fillRect(0,0,400,400);
-        
-        // Wajah pucat
         ctx.beginPath(); ctx.ellipse(200, 200, 100, 140, 0, 0, Math.PI*2);
         ctx.fillStyle = '#ddd'; ctx.fill();
-        
-        // Mata hitam bolong
         ctx.fillStyle = 'black';
         ctx.beginPath(); ctx.arc(160, 180, 25, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(240, 180, 25, 0, Math.PI*2); ctx.fill();
-        
-        // Mata merah kecil
         ctx.fillStyle = 'red';
         ctx.beginPath(); ctx.arc(160, 180, 5, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(240, 180, 5, 0, Math.PI*2); ctx.fill();
-        
-        // Mulut teriak
         ctx.fillStyle = 'black';
         ctx.beginPath(); ctx.ellipse(200, 280, 40, 60, 0, 0, Math.PI*2); ctx.fill();
-        
-        // Gigi
         ctx.strokeStyle = 'yellow'; ctx.lineWidth = 2;
         ctx.beginPath();
-        for(let i=0; i<10; i++) {
-            ctx.moveTo(170 + i*6, 250); ctx.lineTo(170 + i*6, 270);
-        }
+        for(let i=0; i<10; i++) { ctx.moveTo(170 + i*6, 250); ctx.lineTo(170 + i*6, 270); }
         ctx.stroke();
-
         document.getElementById('scare-face').src = c.toDataURL();
     },
 
-    // 0: Empty, 1: Wall, 2: Key Location, 9: Start
     mapData: [
-        [1,1,1,1,1,1,1,1,1,1,1,1],
-        [1,9,0,0,1,0,0,0,0,0,0,1],
-        [1,1,1,0,1,1,1,1,1,0,1,1],
-        [1,0,0,0,0,0,0,1,0,0,0,1],
-        [1,0,1,1,1,1,0,1,0,1,0,1],
-        [1,0,1,2,0,1,0,0,0,1,0,1], // 2 is key room
-        [1,0,1,1,0,1,1,1,1,1,0,1],
-        [1,0,0,0,0,0,0,0,0,0,0,1],
-        [1,1,1,1,1,1,1,1,1,1,1,1]
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,9,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,0,0,1],
+        [1,1,1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,1,1,0,1],
+        [1,0,0,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1],
+        [1,0,1,1,1,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1,0,1],
+        [1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+        [1,0,1,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1],
+        [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1],
+        [1,1,1,0,1,0,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1],
+        [1,0,0,0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,0,1,0,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1],
+        [1,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+        [1,0,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,0,1],
+        [1,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+        [1,1,1,0,1,0,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1],
+        [1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1],
+        [1,0,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1],
+        [1,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1],
+        [1,0,1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,1,0,1],
+        [1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,3,0,1], 
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
     ],
 
-    objects: [], // Untuk collision interaksi
+    objects: [],
 
     buildLevel: function() {
         const boxGeo = new THREE.BoxGeometry(2, 4, 2);
@@ -432,17 +614,18 @@ const Game = {
         const floorMat = new THREE.MeshStandardMaterial({ map: this.floorTexture, roughness: 0.8 });
         const ceilMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
 
+        const doorGeo = new THREE.BoxGeometry(2, 4, 0.5);
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x225522, roughness: 0.2, metalness: 0.8 });
+
         for(let z=0; z<this.mapData.length; z++) {
             for(let x=0; x<this.mapData[z].length; x++) {
                 const type = this.mapData[z][x];
                 
-                // Floor
                 const floor = new THREE.Mesh(floorGeo, floorMat);
                 floor.rotation.x = -Math.PI/2;
                 floor.position.set(x*2, 0, z*2);
                 this.scene.add(floor);
 
-                // Ceiling
                 const ceil = new THREE.Mesh(floorGeo, ceilMat);
                 ceil.rotation.x = Math.PI/2;
                 ceil.position.set(x*2, 4, z*2);
@@ -456,7 +639,6 @@ const Game = {
                 } else if (type === 9) {
                     this.camera.position.set(x*2, 1.7, z*2);
                 } else if (type === 2) {
-                    // Object Kunci (Kotak merah kecil)
                     const keyGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
                     const keyMat = new THREE.MeshBasicMaterial({color: 0xaa0000});
                     const keyMesh = new THREE.Mesh(keyGeo, keyMat);
@@ -464,6 +646,12 @@ const Game = {
                     keyMesh.name = "kunci_gudang";
                     this.scene.add(keyMesh);
                     this.objects.push(keyMesh);
+                } else if (type === 3) {
+                    const door = new THREE.Mesh(doorGeo, doorMat);
+                    door.position.set(x*2, 2, z*2);
+                    door.name = "pintu_keluar";
+                    this.scene.add(door);
+                    this.objects.push(door);
                 }
             }
         }
@@ -482,14 +670,24 @@ const Game = {
         
         if(intersects.length > 0) {
             const obj = intersects[0].object;
-            if(intersects[0].distance < 3) {
+            if(intersects[0].distance < 4) {
                 if(obj.name === "kunci_gudang") {
                     this.scene.remove(obj);
                     this.hasKey = true;
-                    AudioEngine.playStep(); // Sound effect pick up (reuse step)
-                    this.showSubtitle("Aku menemukan sekring listrik.");
-                    // Trigger horror event after key
-                    setTimeout(() => this.triggerEvent(2), 2000);
+                    AudioEngine.playStep();
+                    this.showSubtitle("Dapat Kunci! Sekarang cari PINTU KELUAR!", 5000);
+                    setTimeout(() => this.triggerEvent(2), 1000); 
+                } else if (obj.name === "pintu_keluar") {
+                    if(this.hasKey) {
+                        this.showSubtitle("Membuka pintu...", 2000);
+                        setTimeout(() => {
+                            alert("SELAMAT! ANDA BERHASIL KELUAR HIDUP-HIDUP.");
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        this.showSubtitle("Terkunci. Aku butuh kunci berkarat.");
+                        AudioEngine.playStep(); 
+                    }
                 }
             }
         }
@@ -497,12 +695,13 @@ const Game = {
 
     triggerEvent: function(id) {
         if(id === 1) {
-            // Early game ambience
-            this.showSubtitle("Tempat apa ini... bau darah sangat menyengat.");
+            this.showSubtitle("Tempat ini sangat luas... aku harus mencari jalan keluar.");
             AudioEngine.playAmbience();
         } 
         else if (id === 2) {
-            // Light flicker and sound after finding key
+            this.enemy.spawn(22, 22); 
+            this.showSubtitle("DIA DATANG!! JANGAN LARI SEMBARANGAN!", 4000);
+            
             let flickerCount = 0;
             const flickerInterval = setInterval(() => {
                 this.flashlight.intensity = Math.random() > 0.5 ? 0 : 1.5;
@@ -510,21 +709,14 @@ const Game = {
                 if(flickerCount > 10) {
                     clearInterval(flickerInterval);
                     this.flashlight.intensity = 1.5;
-                    this.showSubtitle("Sial.. senternya mulai rusak.");
-                    // Trigger sound behind
-                    setTimeout(() => AudioEngine.playStep(), 1000);
-                    setTimeout(() => AudioEngine.playStep(), 1500);
                 }
             }, 100);
         }
         else if (id === 3) {
-            // THE JUMPSCARE
             this.controls.unlock();
             const overlay = document.getElementById('scare-overlay');
             overlay.style.display = 'flex';
             AudioEngine.playScream();
-            
-            // Shake effect logic is in CSS, just showing overlay
             setTimeout(() => {
                 alert("GAME OVER - JANTUNG ANDA BERHENTI");
                 location.reload();
@@ -532,97 +724,203 @@ const Game = {
         }
     },
 
-    // Update Logic
+    drawMinimap: function() {
+        const c = document.getElementById('minimap');
+        const ctx = c.getContext('2d');
+        const cx = c.width / 2;
+        const cy = c.height / 2;
+        const scale = 12; 
+        
+        ctx.fillStyle = '#001100';
+        ctx.fillRect(0, 0, c.width, c.height);
+        
+        const pX = this.camera.position.x / 2;
+        const pZ = this.camera.position.z / 2;
+
+        const range = 8; 
+        
+        for(let z = Math.floor(pZ - range); z <= Math.ceil(pZ + range); z++) {
+            for(let x = Math.floor(pX - range); x <= Math.ceil(pX + range); x++) {
+                if(z >= 0 && z < this.mapData.length && x >= 0 && x < this.mapData[0].length) {
+                    const type = this.mapData[z][x];
+                    
+                    const dx = (x - pX) * scale;
+                    const dz = (z - pZ) * scale;
+                    
+                    if(type === 1) { 
+                        ctx.fillStyle = '#448844';
+                        ctx.fillRect(cx + dx, cy + dz, scale, scale);
+                    } else if (type === 3) { 
+                        ctx.fillStyle = '#00ff00';
+                        ctx.fillRect(cx + dx, cy + dz, scale, scale);
+                    }
+                }
+            }
+        }
+
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI*2);
+        ctx.fill();
+
+        if(this.enemy.active) {
+            const eX = this.enemy.mesh.position.x / 2;
+            const eZ = this.enemy.mesh.position.z / 2;
+            const dx = (eX - pX) * scale;
+            const dz = (eZ - pZ) * scale;
+            
+            if(Math.abs(dx) < c.width/2 && Math.abs(dz) < c.height/2) {
+                ctx.fillStyle = '#ff0000';
+                ctx.beginPath();
+                ctx.arc(cx + dx, cy + dz, 4, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+    },
+
+    checkCollision: function(pos) {
+        const radius = 0.5; 
+        const pX = pos.x;
+        const pZ = pos.z;
+        
+        const cX = Math.round(pX / 2);
+        const cZ = Math.round(pZ / 2);
+        
+        for (let z = cZ - 1; z <= cZ + 1; z++) {
+            for (let x = cX - 1; x <= cX + 1; x++) {
+                if (this.mapData[z] && this.mapData[z][x] === 1) {
+                    const minX = (x * 2) - 1;
+                    const maxX = (x * 2) + 1;
+                    const minZ = (z * 2) - 1;
+                    const maxZ = (z * 2) + 1;
+                    
+                    const closeX = Math.max(minX, Math.min(pX, maxX));
+                    const closeZ = Math.max(minZ, Math.min(pZ, maxZ));
+                    
+                    const dX = pX - closeX;
+                    const dZ = pZ - closeZ;
+                    
+                    const distSq = (dX*dX) + (dZ*dZ);
+                    if (distSq < (radius * radius)) {
+                        return true; 
+                    }
+                }
+            }
+        }
+        return false;
+    },
+
     prevTime: performance.now(),
     velocity: new THREE.Vector3(),
     direction: new THREE.Vector3(),
     stepTimer: 0,
     heartbeatTimer: 0,
-    
-    // Horror Logic Variables
-    sanityTimer: 0,
+    storyStep: 0,
 
     checkEvents: function() {
-        // Logic sederhana berbasis waktu/posisi untuk event
         if(this.storyStep === 0 && performance.now() > 2000) {
             this.triggerEvent(1);
             this.storyStep = 1;
-        }
-
-        // Random Jumpscare Trigger if walking back after key
-        if(this.hasKey && Math.random() < 0.005) { 
-            // 0.5% chance per frame if has key -> Jumpscare
-            this.triggerEvent(3);
         }
     },
 
     animate: function() {
         requestAnimationFrame(() => this.animate());
 
+        this.drawMinimap();
+
         if (this.controls.isLocked === true) {
             const time = performance.now();
             const delta = (time - this.prevTime) / 1000;
 
-            // Physics Movement
-            this.velocity.x -= this.velocity.x * 10.0 * delta;
-            this.velocity.z -= this.velocity.z * 10.0 * delta;
+            const isMoving = this.moveForward || this.moveBackward || this.moveLeft || this.moveRight;
 
-            this.direction.z = Number(this.moveForward) - Number(this.moveBackward);
-            this.direction.x = Number(this.moveRight) - Number(this.moveLeft);
-            this.direction.normalize();
+            if (this.isSprinting && isMoving && this.stamina > 0) {
+                this.currentSpeed = this.runSpeed;
+                this.stamina -= 25 * delta; 
+                if (this.stamina < 0) this.stamina = 0;
+            } else {
+                this.currentSpeed = this.walkSpeed;
+                if (this.stamina < this.maxStamina) {
+                    this.stamina += 15 * delta; 
+                }
+            }
 
-            if (this.moveForward || this.moveBackward) this.velocity.z -= this.direction.z * 40.0 * delta;
-            if (this.moveLeft || this.moveRight) this.velocity.x -= this.direction.x * 40.0 * delta;
+            const bar = document.getElementById('stamina-bar');
+            bar.style.width = (this.stamina / this.maxStamina * 100) + '%';
+            if(this.stamina < 20) bar.style.backgroundColor = '#500';
+            else bar.style.backgroundColor = '#a00';
 
-            this.controls.moveRight(-this.velocity.x * delta);
-            this.controls.moveForward(-this.velocity.z * delta);
+            const forward = new THREE.Vector3();
+            this.camera.getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
 
-            // Wall Collision (Sangat Sederhana - Reset posisi jika dekat tembok)
-            // Note: Di implementasi production, gunakan Raycasting 4 arah.
-            // Di sini kita gunakan constraint bounding box sederhana.
-            const playerPos = this.camera.position;
-            // Batas level sederhana hardcoded berdasarkan mapData
-            if(playerPos.x < 0) playerPos.x = 0;
-            
-            // Audio Langkah Kaki
-            if(this.moveForward || this.moveBackward || this.moveLeft || this.moveRight) {
+            const right = new THREE.Vector3();
+            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+            const dist = this.currentSpeed * delta;
+            let dx = 0;
+            let dz = 0;
+
+            if (this.moveForward) { dx += forward.x * dist; dz += forward.z * dist; }
+            if (this.moveBackward) { dx -= forward.x * dist; dz -= forward.z * dist; }
+            if (this.moveRight) { dx += right.x * dist; dz += right.z * dist; }
+            if (this.moveLeft) { dx -= right.x * dist; dz -= right.z * dist; }
+
+            const oldX = this.camera.position.x;
+            this.camera.position.x += dx;
+            if (this.checkCollision(this.camera.position)) {
+                this.camera.position.x = oldX; 
+            }
+
+            const oldZ = this.camera.position.z;
+            this.camera.position.z += dz;
+            if (this.checkCollision(this.camera.position)) {
+                this.camera.position.z = oldZ; 
+            }
+
+            const maxX = (this.mapData[0].length * 2) - 1;
+            const maxZ = (this.mapData.length * 2) - 1;
+            if(this.camera.position.x < 1) this.camera.position.x = 1;
+            if(this.camera.position.z < 1) this.camera.position.z = 1;
+            if(this.camera.position.x > maxX) this.camera.position.x = maxX;
+            if(this.camera.position.z > maxZ) this.camera.position.z = maxZ;
+
+            if(isMoving) {
                 this.stepTimer += delta;
-                // Bobbing kamera (gerak naik turun saat jalan)
-                this.camera.position.y = 1.7 + Math.sin(time * 0.01) * 0.05;
+                const bobFreq = this.isSprinting && this.stamina > 0 ? 0.02 : 0.01;
+                this.camera.position.y = 1.7 + Math.sin(time * bobFreq) * 0.05;
                 
-                if(this.stepTimer > 0.5) {
-                    AudioEngine.playStep();
+                const stepInterval = this.isSprinting && this.stamina > 0 ? 0.3 : 0.5;
+                
+                if(this.stepTimer > stepInterval) {
+                    AudioEngine.playStep(this.isSprinting ? 1.5 : 1.0); 
                     this.stepTimer = 0;
                 }
             } else {
-                this.camera.position.y = 1.7; // Reset height
+                this.camera.position.y = 1.7;
             }
 
-            // Flashlight Lag (Inersia Senter)
-            // Kita lerp target senter ke arah kamera tapi sedikit lambat
-            const camDir = new THREE.Vector3();
-            this.camera.getWorldDirection(camDir);
-            const targetPos = new THREE.Vector3().copy(this.camera.position).add(camDir);
-            
-            this.flashlight.position.copy(this.camera.position);
-            // Senter sedikit tertinggal (smooth)
-            this.flashlight.target.position.lerp(targetPos, 0.1); 
+            const playerIsRunning = this.isSprinting && isMoving && this.stamina > 0;
+            if(this.enemy) this.enemy.update(delta, this.camera.position, playerIsRunning);
 
-            // Raycast interaksi UI
             this.raycaster.setFromCamera(new THREE.Vector2(0,0), this.camera);
             const intersects = this.raycaster.intersectObjects(this.objects);
             const prompt = document.getElementById('interact-prompt');
-            if(intersects.length > 0 && intersects[0].distance < 3) {
+            if(intersects.length > 0 && intersects[0].distance < 4) {
                 prompt.style.opacity = 1;
             } else {
                 prompt.style.opacity = 0;
             }
 
-            // Heartbeat system (Atmosphere)
-            if(this.hasKey) {
+            if(this.enemy.active) {
                 document.body.classList.add('red-pulse');
+                const dist = this.camera.position.distanceTo(this.enemy.mesh.position);
+                const beatSpeed = Math.max(0.2, dist / 20); 
+                
                 this.heartbeatTimer += delta;
-                if(this.heartbeatTimer > 0.6) { // Cepat karena takut
+                if(this.heartbeatTimer > beatSpeed) {
                     AudioEngine.playHeartbeat();
                     this.heartbeatTimer = 0;
                 }
@@ -636,7 +934,6 @@ const Game = {
     }
 };
 
-// Start Button Listener
 document.getElementById('start-btn').addEventListener('click', () => {
     document.getElementById('start-screen').style.display = 'none';
     AudioEngine.init();
