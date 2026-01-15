@@ -1,87 +1,143 @@
-Gema Penderitaan (Echo of Suffering)
+🎮 Gema Penderitaan (Echo of Suffering)
 
-Gema Penderitaan adalah sebuah pengalaman horor psikologis 3D berbasis web yang dibangun menggunakan Vanilla JavaScript dan Three.js. Game ini dirancang untuk memberikan atmosfer yang mencekam dalam satu file tunggal tanpa memuat aset eksternal.
+Gema Penderitaan adalah game horor psikologis 3D berbasis web yang dibangun menggunakan Vanilla JavaScript dan Three.js. Game ini dirancang untuk menghadirkan atmosfer mencekam dalam satu file HTML tunggal, tanpa memuat aset eksternal apa pun.
+
+Dibuat dengan kode, ditenagai oleh ketakutan.
+
+🕯️ Deskripsi Singkat
+
+Anda terjebak di Fasilitas 09, sebuah labirin penelitian yang telah lama ditinggalkan. Kegelapan menyelimuti setiap sudut, dan sesuatu mengintai Anda dari kejauhan.
+
+Tugas Anda sederhana, tetapi tidak mudah:
+
+Temukan Kunci Berkarat
+
+Cari Pintu Keluar
+
+Bertahan hidup dari “Dia”
+
+Tidak ada peta yang sama. Tidak ada tempat yang benar-benar aman.
 
 🎮 Cara Bermain
 
-Anda terjebak di "Fasilitas 09", sebuah labirin gelap yang ditinggalkan.
+Anda akan muncul di dalam labirin gelap yang dihasilkan secara prosedural.
 
-Cari Kunci Berkarat (Kotak Merah) yang tersembunyi secara acak di dalam peta.
+Cari Kunci Berkarat (ditandai dengan kotak merah).
 
-Setelah mendapatkan kunci, cari Pintu Keluar (Kotak Hijau/Metalik) untuk melarikan diri.
+Setelah kunci didapatkan, temukan Pintu Keluar (kotak hijau/metalik).
 
-Hindari "Dia". Sosok bermata merah yang mengintai di kegelapan.
+Hindari “Dia”, sosok bermata merah yang akan mengejar jika mendengar langkah Anda.
 
-Sistem Kontrol
-
-Tombol
-
-Aksi
-
-W, A, S, D
-
-Bergerak (Jalan)
-
-SHIFT
-
-Lari (Sprint) - Menguras Stamina
-
-Mouse
-
-Melihat sekeliling
-
-E
-
-Interaksi (Ambil kunci / Buka pintu)
-
+🎹 Sistem Kontrol
+Tombol	Aksi
+W, A, S, D	Bergerak
+SHIFT	Lari (Sprint – menguras stamina)
+Mouse	Melihat sekeliling
+E	Interaksi (ambil kunci / buka pintu)
 ✨ Fitur Utama
+1️⃣ Massive Procedural Map Generation
 
-1. Massive Procedural Map Generation
+Peta 75x75 yang dihasilkan ulang setiap permainan menggunakan algoritma Recursive Backtracker
 
-Peta Raksasa 75x75: Setiap kali permainan dimulai, algoritma Recursive Backtracker akan membuat labirin baru yang unik dan sangat luas. Tidak ada dua permainan yang sama.
+Tidak ada dua sesi permainan yang sama
 
-Optimasi Rendering: Menggunakan InstancedMesh dari Three.js untuk merender ribuan dinding dalam satu draw call, menjaga frame rate tetap tinggi meski peta sangat besar.
+Optimasi menggunakan InstancedMesh (Three.js) untuk menjaga performa tetap tinggi
 
-2. Advanced Enemy AI ("The Stalker")
+2️⃣ Advanced Enemy AI – “The Stalker”
 
-Auditory Sensitivity: Musuh memiliki mode Roaming (berkeliaran acak) dan Chasing (mengejar). Jika Anda berlari (Sprint), musuh akan mendengar langkah Anda dan langsung mengejar ke posisi Anda.
+Mode Roaming & Chasing
 
-Teleportasi: Untuk mencegah pemain memprediksi posisi, musuh akan melakukan teleportasi acak setiap 15 detik ke lokasi yang valid di peta (tidak menembus tembok, tidak terlalu dekat dengan spawn pemain).
+Musuh dapat mendengar langkah kaki, terutama saat pemain berlari
 
-Pathfinding: Menggunakan algoritma BFS (Breadth-First Search) untuk mencari jalur terpendek menuju pemain di dalam labirin yang kompleks.
+Teleportasi acak setiap 15 detik untuk menghindari eksploitasi pemain
 
-3. Procedural Audio Engine
+Pathfinding BFS (Breadth-First Search) untuk navigasi labirin yang kompleks
 
-Tanpa File MP3: Game ini tidak memuat aset suara eksternal. Semua suara (langkah kaki, detak jantung, jumpscare scream, ambience, static noise) dihasilkan secara real-time menggunakan Web Audio API.
+3️⃣ Procedural Audio Engine
 
-Dynamic Sound: Frekuensi detak jantung dan intensitas suara berubah berdasarkan kedekatan dengan musuh.
+Tanpa file audio eksternal (MP3/WAV)
 
-4. Immersive Gameplay Mechanics
+Semua suara dihasilkan real-time menggunakan Web Audio API
 
-Sistem Stamina: Pemain tidak bisa berlari selamanya. Manajemen stamina diperlukan untuk kabur di saat genting.
+Termasuk:
 
-Wall Sliding Physics: Sistem kolisi yang mulus memungkinkan pemain "meluncur" saat menabrak dinding miring, mencegah karakter tersangkut (stuck).
+Langkah kaki
 
-Radar/Minimap: Radar di pojok kanan atas membantu navigasi di peta yang luas, menunjukkan posisi pemain dan musuh (jika dalam jangkauan).
+Detak jantung
 
-5. Atmosfer & Visual
+Ambience
 
-Story Intro: Cutscene berbasis teks yang membangun narasi sebelum permainan dimulai.
+Static noise
 
-Procedural Textures: Tekstur dinding dan lantai dibuat menggunakan Canvas API (noise & gradient) secara otomatis.
+Jumpscare scream
 
-Post-Processing: Efek Vignette dan Film Grain untuk memberikan kesan visual horor jadul (VHS style).
+Intensitas suara berubah berdasarkan jarak dengan musuh
+
+4️⃣ Immersive Gameplay Mechanics
+
+Sistem stamina untuk sprint
+
+Wall sliding physics untuk kolisi yang halus
+
+Radar / minimap untuk membantu navigasi dan mendeteksi musuh dalam jangkauan
+
+5️⃣ Atmosfer & Visual
+
+Intro cerita berbasis teks
+
+Tekstur dinding & lantai procedural (Canvas API)
+
+Efek visual:
+
+Vignette
+
+Film grain
+
+Nuansa horor VHS
 
 🏆 Keunggulan Teknis
 
-Single File Application: Seluruh game (HTML, CSS, JS, Audio, Texture) berada dalam satu file HTML. Sangat mudah dibagikan dan dijalankan secara offline.
+✅ Single File Application
+Seluruh game berada dalam satu file HTML
 
-Zero External Assets: Tidak ada gambar (JPG/PNG) atau audio (MP3/WAV) yang perlu diunduh, membuat waktu loading hampir instan.
+✅ Zero External Assets
+Tidak ada gambar atau audio eksternal
 
-Cross-Browser: Berjalan di browser modern apa pun (Chrome, Firefox, Edge) yang mendukung WebGL.
+✅ Offline Ready
+Cukup buka file HTML di browser
+
+✅ Cross-Browser Support
+Berjalan di Chrome, Firefox, Edge (WebGL)
 
 ⚠️ Peringatan
 
-Game ini mengandung lampu berkedip (flashing lights) dan suara keras tiba-tiba (jumpscares). Harap gunakan headphone untuk pengalaman terbaik.
+⚠️ Game ini mengandung:
 
-Dibuat dengan kode, ditenagai oleh ketakutan.
+Lampu berkedip (flashing lights)
+
+Suara keras mendadak (jumpscare)
+
+🎧 Disarankan menggunakan headphone untuk pengalaman terbaik.
+
+🚀 Cara Menjalankan
+
+Clone repository ini:
+
+git clone https://github.com/username/gema-penderitaan.git
+
+
+Buka file index.html langsung di browser
+
+Mainkan dan bertahan hidup
+
+🧠 Teknologi yang Digunakan
+
+JavaScript (Vanilla)
+
+Three.js
+
+Web Audio API
+
+Canvas API
+
+WebGL
