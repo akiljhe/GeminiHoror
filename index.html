@@ -59,6 +59,17 @@
             pointer-events: none; z-index: 6; opacity: 0.4;
         }
 
+        /* Intro & Start Screens */
+        #intro-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 200; display: none; flex-direction: column;
+            align-items: center; justify-content: center; pointer-events: auto;
+        }
+        #intro-text {
+            color: #ddd; font-size: 20px; text-align: center; max-width: 600px;
+            line-height: 1.6; opacity: 0; transition: opacity 1s; padding: 20px;
+        }
+        
         #start-screen {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: #050505; color: #a0a0a0; display: flex; flex-direction: column;
@@ -124,6 +135,12 @@
         <p style="margin-top: 10px;">Peringatan: Mengandung suara keras.</p>
         <div class="btn" id="start-btn">MASUKI KEGELAPAN</div>
         <p style="font-size: 12px; margin-top: 20px; color: #555;">WASD: Gerak | SHIFT: Lari | E: Interaksi</p>
+    </div>
+
+    <!-- Cutscene Layer -->
+    <div id="intro-screen">
+        <div id="intro-text"></div>
+        <div class="btn" id="continue-btn" style="display:none;">BUKA MATAMU</div>
     </div>
 
     <div id="vignette"></div>
@@ -934,9 +951,52 @@ const Game = {
     }
 };
 
-document.getElementById('start-btn').addEventListener('click', () => {
+const cutsceneLines = [
+    "14 Oktober 1998...",
+    "Aku menerima surat aneh tentang 'Fasilitas 09'.",
+    "Katanya tempat ini sudah ditinggalkan...",
+    "Tapi saat aku melangkah masuk, pintu besi terbanting sendiri.",
+    "Terkunci rapat.",
+    "Bau amis darah menyeruak...",
+    "Dan aku mendengar sesuatu bernapas di kegelapan."
+];
+
+function playCutscene() {
     document.getElementById('start-screen').style.display = 'none';
-    AudioEngine.init();
+    const introScreen = document.getElementById('intro-screen');
+    const introText = document.getElementById('intro-text');
+    const continueBtn = document.getElementById('continue-btn');
+    
+    introScreen.style.display = 'flex';
+    AudioEngine.init(); 
+    
+    let delay = 0;
+    
+    cutsceneLines.forEach((line, index) => {
+        setTimeout(() => {
+            introText.innerText = line;
+            introText.style.opacity = 1;
+            if(index === 0) AudioEngine.playAmbience(); 
+        }, delay);
+        
+        delay += 3000; 
+        
+        setTimeout(() => {
+            introText.style.opacity = 0;
+        }, delay - 500); 
+    });
+
+    setTimeout(() => {
+        continueBtn.style.display = 'block';
+    }, delay);
+}
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    playCutscene();
+});
+
+document.getElementById('continue-btn').addEventListener('click', () => {
+    document.getElementById('intro-screen').style.display = 'none';
     Game.init();
     Game.controls.lock();
 });
