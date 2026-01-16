@@ -49,10 +49,10 @@
         <h1>GEMA PENDERITAAN</h1>
         <div class="objective-list">
             <p>TUJUAN:</p>
-            <p>1. Cari <b>KUNCI BERKARAT</b> (Lokasi Acak)</p>
+            <p>1. Cari <b>KUNCI BERKARAT</b> (Ikuti Cahaya Merah)</p>
             <p>2. Lari ke <b>PINTU KELUAR</b> (Lokasi Acak)</p>
-            <p style="color:#a00; font-size:12px; margin-top:10px;">*TIPS: Peta cukup luas (50x50).*</p>
-            <p style="color:#a00; font-size:12px;">*TIPS: Lari (Shift) akan memancing hantu.*</p>
+            <p style="color:#a00; font-size:12px; margin-top:10px;">*TIPS: Kunci memancarkan cahaya merah samar.*</p>
+            <p style="color:#a00; font-size:12px;">*TIPS: Karakter akan memberi isyarat jika dekat kunci.*</p>
         </div>
         <p style="margin-top: 10px;">Peringatan: Mengandung suara keras.</p>
         <div class="btn" id="start-btn">MASUKI KEGELAPAN</div>
@@ -210,13 +210,13 @@ class Enemy {
         this.mesh.add(this.eyeRight);
         this.mesh.position.set(-10, -10, -10);
         this.scene.add(this.mesh);
-        this.speed = 2.0; 
-        this.active = true; // Always active now
+        this.speed = 1.4; 
+        this.active = true; 
         this.path = [];
         this.pathTimer = 0;
         this.teleportTimer = 0;
         this.randomTarget = null;
-        this.state = 'PASSIVE'; // Start PASSIVE
+        this.state = 'PASSIVE'; 
     }
     spawn(x, z) {
         this.mesh.position.set(x * 2, 1, z * 2);
@@ -225,37 +225,29 @@ class Enemy {
     }
     setAggressive() {
         this.state = 'HUNTING';
-        this.speed = 4.5;
-        this.teleportTimer = 10; // Trigger teleport sooner
+        this.speed = 3.2; 
+        this.teleportTimer = 10; 
     }
     update(dt, playerPos, playerIsSprinting) {
         if (!this.active) return;
-        
-        // Logic Teleport & State
         if (this.state === 'PASSIVE') {
             this.teleportTimer += dt;
-            // Pasif: Teleport jarang (30s)
             if (this.teleportTimer > 30) {
-                this.teleport(playerPos, true); // True = keep away
+                this.teleport(playerPos, true); 
                 this.teleportTimer = 0;
             }
         } else {
-            // Hunting: Teleport sering (15s)
             this.teleportTimer += dt;
             if (this.teleportTimer > 15) {
-                this.teleport(playerPos, false); // False = can be closer
+                this.teleport(playerPos, false); 
                 this.teleportTimer = 0;
             }
         }
-
         let currentTarget = null;
-        
         if (this.state === 'HUNTING' && playerIsSprinting) {
-            // Hunting + Lari = Kejar langsung
             currentTarget = playerPos;
             this.mesh.lookAt(playerPos.x, 1, playerPos.z);
         } else {
-            // Roaming (Baik passive maupun hunting tapi player diam)
             if (!this.randomTarget || this.path.length === 0) {
                 this.pickRandomTarget();
             }
@@ -265,13 +257,11 @@ class Enemy {
                 this.mesh.lookAt(next.x * 2, 1, next.z * 2);
             }
         }
-
         this.pathTimer += dt;
         if (this.pathTimer > 0.5) {
             this.pathTimer = 0;
             if (currentTarget) this.calculatePath(currentTarget);
         }
-
         if (this.path.length > 0) {
             const nextNode = this.path[0];
             const targetX = nextNode.x * 2;
@@ -286,9 +276,7 @@ class Enemy {
                 this.mesh.position.z += dir.z * this.speed * dt;
             }
         }
-        
         const distToPlayer = this.mesh.position.distanceTo(playerPos);
-        // Audio proximity (Jauh lebih sunyi saat pasif)
         if (distToPlayer < 10) {
             const vol = this.state === 'PASSIVE' ? 0.3 * (1 - distToPlayer/10) : 1 - (distToPlayer/10);
             if (Math.random() < 0.1) AudioEngine.playStatic(vol * 0.2);
@@ -308,14 +296,12 @@ class Enemy {
                 const dx = (rX * 2) - playerPos.x;
                 const dz = (rZ * 2) - playerPos.z;
                 const dist = Math.sqrt(dx * dx + dz * dz);
-                
                 let distCheck = false;
                 if (keepAway) {
-                    if (dist > 30) distCheck = true; // Spawn jauh
+                    if (dist > 30) distCheck = true; 
                 } else {
-                    if (dist > 10 && dist < 30) distCheck = true; // Spawn sedang
+                    if (dist > 10 && dist < 30) distCheck = true; 
                 }
-
                 if (distCheck) {
                     newX = rX * 2;
                     newZ = rZ * 2;
@@ -328,7 +314,6 @@ class Enemy {
             this.mesh.position.set(newX, 1, newZ);
             this.path = [];
             this.randomTarget = null;
-            // Suara teleport hanya jika hunting/dekat
             if (this.state === 'HUNTING') AudioEngine.playStatic(0.5);
         }
     }
@@ -385,7 +370,7 @@ const Game = {
     raycaster: new THREE.Raycaster(),
     walkSpeed: 5.0, runSpeed: 10.0, currentSpeed: 5.0, isSprinting: false,
     stamina: 100, maxStamina: 100,
-    flashlight: null, walls: [], enemy: null,
+    flashlight: null, walls: [], enemy: null, flickeringLights: [], // ADDED ARRAY
     isRunning: false, sanity: 100, hasKey: false, storyStep: 0,
     mapData: [],
     
@@ -403,7 +388,6 @@ const Game = {
         this.mapData = this.generateMaze(50, 50);
         this.buildLevel();
         this.enemy = new Enemy(this.scene, this.mapData);
-        // Spawn musuh di awal (Jauh, Pasif)
         this.spawnEnemyStart();
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.02);
         this.scene.add(ambientLight);
@@ -427,8 +411,7 @@ const Game = {
         while(!spawned && attempts < 50) {
             const rx = Math.floor(Math.random() * this.mapData[0].length);
             const rz = Math.floor(Math.random() * this.mapData.length);
-            // Spawn sangat jauh
-            const dist = Math.sqrt(Math.pow(rx*2 - 1, 2) + Math.pow(rz*2 - 1, 2)); // Asumsi player start 1,1
+            const dist = Math.sqrt(Math.pow(rx*2 - 1, 2) + Math.pow(rz*2 - 1, 2)); 
             if(this.mapData[rz][rx] === 0 && dist > 50) {
                 this.enemy.spawn(rx, rz);
                 spawned = true;
@@ -467,19 +450,16 @@ const Game = {
         canvas.width = 512; canvas.height = 512;
         const ctx = canvas.getContext('2d');
         ctx.fillStyle = '#1a1a1a'; ctx.fillRect(0,0,512,512);
-        // Noise
         for(let i=0; i<50000; i++) {
             ctx.fillStyle = Math.random() > 0.5 ? '#222' : '#111';
             ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
         }
-        // Stains
         for(let i=0; i<30; i++) {
             const x = Math.random()*512; const y = Math.random()*512; const r = Math.random()*50 + 20;
             const gr = ctx.createRadialGradient(x,y,0,x,y,r);
             gr.addColorStop(0, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
         }
-        // Cakaran / Scratches (Dekorasi baru)
         ctx.strokeStyle = '#050505';
         ctx.lineWidth = 1;
         for(let i=0; i<40; i++) {
@@ -616,10 +596,13 @@ const Game = {
         const doorGeo = new THREE.BoxGeometry(2, 4, 0.5);
         const doorMat = new THREE.MeshStandardMaterial({ color: 0x225522, roughness: 0.2, metalness: 0.8 });
         
-        // Warna dinding
         const normalColor = new THREE.Color(0xffffff);
-        const bloodColor = new THREE.Color(0x884444); // Merah gelap
-        const darkColor = new THREE.Color(0x555555); // Gelap
+        const bloodColor = new THREE.Color(0x884444); 
+        const darkColor = new THREE.Color(0x555555); 
+
+        // Light Fixture Geometry
+        const lampGeo = new THREE.BoxGeometry(0.5, 0.1, 0.5);
+        const lampMat = new THREE.MeshBasicMaterial({ color: 0x555555 });
 
         for(let z=0; z<mapH; z++) {
             for(let x=0; x<mapW; x++) {
@@ -629,13 +612,25 @@ const Game = {
                     dummy.updateMatrix();
                     wallMesh.setMatrixAt(i, dummy.matrix);
                     
-                    // Acak warna dinding untuk dekorasi (Darah/Kotor)
                     const rand = Math.random();
-                    if(rand < 0.05) wallMesh.setColorAt(i, bloodColor); // 5% berdarah
-                    else if(rand < 0.2) wallMesh.setColorAt(i, darkColor); // 15% kotor
+                    if(rand < 0.05) wallMesh.setColorAt(i, bloodColor); 
+                    else if(rand < 0.2) wallMesh.setColorAt(i, darkColor); 
                     else wallMesh.setColorAt(i, normalColor);
                     
                     i++;
+                } else if (type === 0) {
+                    // Chance for Flickering Light in empty space
+                    if (Math.random() < 0.03) { // 3% chance per floor tile
+                        const lamp = new THREE.Mesh(lampGeo, lampMat);
+                        lamp.position.set(x*2, 3.95, z*2); // On ceiling
+                        this.scene.add(lamp);
+
+                        const bulb = new THREE.PointLight(0xaaddff, 1, 10);
+                        bulb.position.set(0, -0.2, 0);
+                        lamp.add(bulb);
+                        
+                        this.flickeringLights.push({ light: bulb, baseInt: 1.0 });
+                    }
                 } else if (type === 9) {
                     this.camera.position.set(x*2, 1.7, z*2);
                 } else if (type === 2) {
@@ -644,6 +639,11 @@ const Game = {
                     keyMesh.name = "kunci_gudang";
                     this.scene.add(keyMesh);
                     this.objects.push(keyMesh);
+                    
+                    const keyLight = new THREE.PointLight(0xff0000, 1.5, 15);
+                    keyMesh.add(keyLight);
+                    this.keyMesh = keyMesh; 
+                    
                 } else if (type === 3) {
                     const door = new THREE.Mesh(doorGeo, doorMat);
                     door.position.set(x*2, 2, z*2);
@@ -696,7 +696,6 @@ const Game = {
             AudioEngine.playAmbience();
         } 
         else if (id === 2) {
-            // Player ambil kunci = Hantu Marah
             this.enemy.setAggressive();
             this.showSubtitle("DIA MARAH!! LARI KE PINTU!", 4000);
             let flickerCount = 0;
@@ -821,6 +820,33 @@ const Game = {
             bar.style.width = (this.stamina / this.maxStamina * 100) + '%';
             if(this.stamina < 20) bar.style.backgroundColor = '#500';
             else bar.style.backgroundColor = '#a00';
+            
+            if (!this.hasKey && this.keyMesh) {
+                this.keyMesh.children[0].intensity = 1.0 + Math.sin(time * 0.003) * 0.5;
+                const distToKey = this.camera.position.distanceTo(this.keyMesh.position);
+                if (distToKey < 25 && Math.random() < 0.002) { 
+                    const hints = [
+                        "Aku mencium bau besi berkarat...",
+                        "Ada cahaya merah samar di lorong ini...",
+                        "Kuncinya pasti dekat...",
+                        "Perasaanku mengatakan arah ini benar..."
+                    ];
+                    const sub = document.getElementById('subtitle');
+                    if (sub.style.opacity == 0) {
+                        this.showSubtitle(hints[Math.floor(Math.random() * hints.length)], 3000);
+                    }
+                }
+            }
+
+            // Flicker logic for ceiling lights
+            for (const fl of this.flickeringLights) {
+                if (Math.random() > 0.95) { // Occasional flicker off
+                    fl.light.intensity = 0.1;
+                } else {
+                    fl.light.intensity = fl.baseInt + (Math.random() * 0.5 - 0.25);
+                }
+            }
+
             const forward = new THREE.Vector3();
             this.camera.getWorldDirection(forward);
             forward.y = 0;
