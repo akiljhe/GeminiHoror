@@ -217,6 +217,8 @@ class Enemy {
         this.teleportTimer = 0;
         this.randomTarget = null;
         this.state = 'PASSIVE'; 
+        // Optimization: Reusable vector
+        this.moveDir = new THREE.Vector3();
     }
     spawn(x, z) {
         this.mesh.position.set(x * 2, 1, z * 2);
@@ -266,14 +268,16 @@ class Enemy {
             const nextNode = this.path[0];
             const targetX = nextNode.x * 2;
             const targetZ = nextNode.z * 2;
-            const dir = new THREE.Vector3(targetX - this.mesh.position.x, 0, targetZ - this.mesh.position.z);
-            const dist = dir.length();
+            
+            // Reusing vector
+            this.moveDir.set(targetX - this.mesh.position.x, 0, targetZ - this.mesh.position.z);
+            const dist = this.moveDir.length();
             if (dist < 0.2) {
                 this.path.shift();
             } else {
-                dir.normalize();
-                this.mesh.position.x += dir.x * this.speed * dt;
-                this.mesh.position.z += dir.z * this.speed * dt;
+                this.moveDir.normalize();
+                this.mesh.position.x += this.moveDir.x * this.speed * dt;
+                this.mesh.position.z += this.moveDir.z * this.speed * dt;
             }
         }
         const distToPlayer = this.mesh.position.distanceTo(playerPos);
@@ -370,15 +374,20 @@ const Game = {
     raycaster: new THREE.Raycaster(),
     walkSpeed: 5.0, runSpeed: 10.0, currentSpeed: 5.0, isSprinting: false,
     stamina: 100, maxStamina: 100,
-    flashlight: null, walls: [], enemy: null, flickeringLights: [], // ADDED ARRAY
+    flashlight: null, walls: [], enemy: null, flickeringLights: [], 
     isRunning: false, sanity: 100, hasKey: false, storyStep: 0,
     mapData: [],
+    
+    // REUSABLE VECTORS (Garbage Collection Optimization)
+    _vecForward: new THREE.Vector3(),
+    _vecRight: new THREE.Vector3(),
+    _vecMove: new THREE.Vector3(),
     
     init: function() {
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.FogExp2(0x050505, 0.15);
         this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        this.renderer = new THREE.WebGLRenderer({ antialias: false });
+        this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -600,7 +609,6 @@ const Game = {
         const bloodColor = new THREE.Color(0x884444); 
         const darkColor = new THREE.Color(0x555555); 
 
-        // Light Fixture Geometry
         const lampGeo = new THREE.BoxGeometry(0.5, 0.1, 0.5);
         const lampMat = new THREE.MeshBasicMaterial({ color: 0x555555 });
 
@@ -619,17 +627,18 @@ const Game = {
                     
                     i++;
                 } else if (type === 0) {
-                    // Chance for Flickering Light in empty space
-                    if (Math.random() < 0.03) { // 3% chance per floor tile
+                    // Optimization: Reduced flickering lights probability (0.015) and removed shadow casting
+                    if (Math.random() < 0.015) { 
                         const lamp = new THREE.Mesh(lampGeo, lampMat);
-                        lamp.position.set(x*2, 3.95, z*2); // On ceiling
+                        lamp.position.set(x*2, 3.95, z*2); 
                         this.scene.add(lamp);
 
                         const bulb = new THREE.PointLight(0xaaddff, 1, 10);
                         bulb.position.set(0, -0.2, 0);
+                        bulb.castShadow = false; // Disable shadows for performance
                         lamp.add(bulb);
                         
-                        this.flickeringLights.push({ light: bulb, baseInt: 1.0 });
+                        this.flickeringLights.push({ light: bulb, baseInt: 1.0, pos: lamp.position });
                     }
                 } else if (type === 9) {
                     this.camera.position.set(x*2, 1.7, z*2);
@@ -641,6 +650,7 @@ const Game = {
                     this.objects.push(keyMesh);
                     
                     const keyLight = new THREE.PointLight(0xff0000, 1.5, 15);
+                    keyLight.castShadow = false;
                     keyMesh.add(keyLight);
                     this.keyMesh = keyMesh; 
                     
@@ -750,6 +760,22 @@ const Game = {
         ctx.beginPath();
         ctx.arc(cx, cy, 3, 0, Math.PI*2);
         ctx.fill();
+        
+        this.camera.getWorldDirection(this._vecForward);
+        const angle = Math.atan2(this._vecForward.z, this._vecForward.x); 
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(angle); 
+        ctx.beginPath();
+        ctx.moveTo(8, 0);   
+        ctx.lineTo(-4, 4);  
+        ctx.lineTo(-4, -4); 
+        ctx.closePath();
+        ctx.fillStyle = '#0f0'; 
+        ctx.fill();
+        ctx.restore();
+
         if(this.enemy.active) {
             const eX = this.enemy.mesh.position.x / 2;
             const eZ = this.enemy.mesh.position.z / 2;
@@ -838,44 +864,55 @@ const Game = {
                 }
             }
 
-            // Flicker logic for ceiling lights
+            // Optimization: Culling lights based on distance
+            const pPos = this.camera.position;
             for (const fl of this.flickeringLights) {
-                if (Math.random() > 0.95) { // Occasional flicker off
-                    fl.light.intensity = 0.1;
+                const dist = pPos.distanceTo(fl.pos);
+                if (dist < 15) { // Only active if close
+                    if (Math.random() > 0.95) { 
+                        fl.light.intensity = 0.1;
+                    } else {
+                        fl.light.intensity = fl.baseInt + (Math.random() * 0.5 - 0.25);
+                    }
+                    fl.light.visible = true;
                 } else {
-                    fl.light.intensity = fl.baseInt + (Math.random() * 0.5 - 0.25);
+                    fl.light.visible = false;
                 }
             }
 
-            const forward = new THREE.Vector3();
-            this.camera.getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+            // Using Reusable Vectors
+            this.camera.getWorldDirection(this._vecForward);
+            this._vecForward.y = 0;
+            this._vecForward.normalize();
+            this._vecRight.crossVectors(this._vecForward, new THREE.Vector3(0, 1, 0)).normalize();
             const dist = this.currentSpeed * delta;
-            let dx = 0;
-            let dz = 0;
-            if (this.moveForward) { dx += forward.x * dist; dz += forward.z * dist; }
-            if (this.moveBackward) { dx -= forward.x * dist; dz -= forward.z * dist; }
-            if (this.moveRight) { dx += right.x * dist; dz += right.z * dist; }
-            if (this.moveLeft) { dx -= right.x * dist; dz -= right.z * dist; }
+            
+            this._vecMove.set(0,0,0);
+            if (this.moveForward) this._vecMove.add(this._vecForward);
+            if (this.moveBackward) this._vecMove.sub(this._vecForward);
+            if (this.moveRight) this._vecMove.add(this._vecRight);
+            if (this.moveLeft) this._vecMove.sub(this._vecRight);
+            
+            // Movement Sliding
             const oldX = this.camera.position.x;
-            this.camera.position.x += dx;
+            this.camera.position.x += this._vecMove.x * dist;
             if (this.checkCollision(this.camera.position)) {
                 this.camera.position.x = oldX; 
             }
             const oldZ = this.camera.position.z;
-            this.camera.position.z += dz;
+            this.camera.position.z += this._vecMove.z * dist;
             if (this.checkCollision(this.camera.position)) {
                 this.camera.position.z = oldZ; 
             }
+
+            // Bounds
             const maxX = (this.mapData[0].length * 2) - 1;
             const maxZ = (this.mapData.length * 2) - 1;
             if(this.camera.position.x < 1) this.camera.position.x = 1;
             if(this.camera.position.z < 1) this.camera.position.z = 1;
             if(this.camera.position.x > maxX) this.camera.position.x = maxX;
             if(this.camera.position.z > maxZ) this.camera.position.z = maxZ;
+
             if(isMoving) {
                 this.stepTimer += delta;
                 const bobFreq = this.isSprinting && this.stamina > 0 ? 0.02 : 0.01;
