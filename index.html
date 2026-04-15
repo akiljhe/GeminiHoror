@@ -217,7 +217,6 @@ class Enemy {
         this.teleportTimer = 0;
         this.randomTarget = null;
         this.state = 'PASSIVE'; 
-        // Optimization: Reusable vector
         this.moveDir = new THREE.Vector3();
     }
     spawn(x, z) {
@@ -234,13 +233,13 @@ class Enemy {
         if (!this.active) return;
         if (this.state === 'PASSIVE') {
             this.teleportTimer += dt;
-            if (this.teleportTimer > 30) {
+            if (this.teleportTimer > 20) {
                 this.teleport(playerPos, true); 
                 this.teleportTimer = 0;
             }
         } else {
             this.teleportTimer += dt;
-            if (this.teleportTimer > 15) {
+            if (this.teleportTimer > 10) {
                 this.teleport(playerPos, false); 
                 this.teleportTimer = 0;
             }
@@ -268,8 +267,6 @@ class Enemy {
             const nextNode = this.path[0];
             const targetX = nextNode.x * 2;
             const targetZ = nextNode.z * 2;
-            
-            // Reusing vector
             this.moveDir.set(targetX - this.mesh.position.x, 0, targetZ - this.mesh.position.z);
             const dist = this.moveDir.length();
             if (dist < 0.2) {
@@ -281,8 +278,8 @@ class Enemy {
             }
         }
         const distToPlayer = this.mesh.position.distanceTo(playerPos);
-        if (distToPlayer < 10) {
-            const vol = this.state === 'PASSIVE' ? 0.3 * (1 - distToPlayer/10) : 1 - (distToPlayer/10);
+        if (distToPlayer < 8) {
+            const vol = this.state === 'PASSIVE' ? 0.3 * (1 - distToPlayer/8) : 1 - (distToPlayer/8);
             if (Math.random() < 0.1) AudioEngine.playStatic(vol * 0.2);
         }
         if (distToPlayer < 1.0) {
@@ -302,9 +299,9 @@ class Enemy {
                 const dist = Math.sqrt(dx * dx + dz * dz);
                 let distCheck = false;
                 if (keepAway) {
-                    if (dist > 30) distCheck = true; 
+                    if (dist > 10) distCheck = true; 
                 } else {
-                    if (dist > 10 && dist < 30) distCheck = true; 
+                    if (dist > 5 && dist < 15) distCheck = true; 
                 }
                 if (distCheck) {
                     newX = rX * 2;
@@ -345,7 +342,7 @@ class Enemy {
         let iterations = 0;
         while (queue.length > 0) {
             iterations++;
-            if (iterations > 400) break;
+            if (iterations > 200) break;
             const {x, z, path} = queue.shift();
             if (x === endX && z === endZ) {
                 this.path = path;
@@ -358,7 +355,7 @@ class Enemy {
                     if (!visited.has(key)) {
                         visited.add(key);
                         const newPath = [...path, {x: n.x, z: n.z}];
-                        if (newPath.length < 20) {
+                        if (newPath.length < 15) {
                             queue.push({x: n.x, z: n.z, path: newPath});
                         }
                     }
@@ -377,12 +374,9 @@ const Game = {
     flashlight: null, walls: [], enemy: null, flickeringLights: [], 
     isRunning: false, sanity: 100, hasKey: false, storyStep: 0,
     mapData: [],
-    
-    // REUSABLE VECTORS (Garbage Collection Optimization)
     _vecForward: new THREE.Vector3(),
     _vecRight: new THREE.Vector3(),
     _vecMove: new THREE.Vector3(),
-    
     init: function() {
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.FogExp2(0x050505, 0.15);
@@ -390,11 +384,10 @@ const Game = {
         this.renderer = new THREE.WebGLRenderer({ antialias: false, powerPreference: "high-performance" });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(this.renderer.domElement);
         this.setupControls();
         this.generateTexture();
-        this.mapData = this.generateMaze(50, 50);
+        this.mapData = this.generateMaze(16, 16);
         this.buildLevel();
         this.enemy = new Enemy(this.scene, this.mapData);
         this.spawnEnemyStart();
@@ -421,13 +414,12 @@ const Game = {
             const rx = Math.floor(Math.random() * this.mapData[0].length);
             const rz = Math.floor(Math.random() * this.mapData.length);
             const dist = Math.sqrt(Math.pow(rx*2 - 1, 2) + Math.pow(rz*2 - 1, 2)); 
-            if(this.mapData[rz][rx] === 0 && dist > 50) {
+            if(this.mapData[rz][rx] === 0 && dist > 10) {
                 this.enemy.spawn(rx, rz);
                 spawned = true;
             }
             attempts++;
         }
-        if(!spawned) this.enemy.spawn(30, 30);
     },
     setupControls: function() {
         this.controls = new THREE.PointerLockControls(this.camera, document.body);
@@ -463,22 +455,6 @@ const Game = {
             ctx.fillStyle = Math.random() > 0.5 ? '#222' : '#111';
             ctx.fillRect(Math.random()*512, Math.random()*512, 2, 2);
         }
-        for(let i=0; i<30; i++) {
-            const x = Math.random()*512; const y = Math.random()*512; const r = Math.random()*50 + 20;
-            const gr = ctx.createRadialGradient(x,y,0,x,y,r);
-            gr.addColorStop(0, 'rgba(0,0,0,0.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
-        }
-        ctx.strokeStyle = '#050505';
-        ctx.lineWidth = 1;
-        for(let i=0; i<40; i++) {
-            const x = Math.random() * 512;
-            const y = Math.random() * 512;
-            ctx.beginPath();
-            ctx.moveTo(x, y);
-            ctx.lineTo(x + Math.random()*30 - 15, y + Math.random()*40);
-            ctx.stroke();
-        }
         this.wallTexture = new THREE.CanvasTexture(canvas);
         this.floorTexture = new THREE.CanvasTexture(canvas);
         this.generateScaryFace();
@@ -493,15 +469,8 @@ const Game = {
         ctx.fillStyle = 'black';
         ctx.beginPath(); ctx.arc(160, 180, 25, 0, Math.PI*2); ctx.fill();
         ctx.beginPath(); ctx.arc(240, 180, 25, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = 'red';
-        ctx.beginPath(); ctx.arc(160, 180, 5, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(240, 180, 5, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = 'black';
         ctx.beginPath(); ctx.ellipse(200, 280, 40, 60, 0, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'yellow'; ctx.lineWidth = 2;
-        ctx.beginPath();
-        for(let i=0; i<10; i++) { ctx.moveTo(170 + i*6, 250); ctx.lineTo(170 + i*6, 270); }
-        ctx.stroke();
         document.getElementById('scare-face').src = c.toDataURL();
     },
     generateMaze: function(width, height) {
@@ -534,33 +503,21 @@ const Game = {
             }
             if (!carved) stack.pop();
         }
-        for (let y = 1; y < height - 1; y++) {
-            for (let x = 1; x < width - 1; x++) {
-                if (map[y][x] === 1 && Math.random() < 0.15) {
-                    let neighbors = 0;
-                    if (map[y-1][x] === 0) neighbors++;
-                    if (map[y+1][x] === 0) neighbors++;
-                    if (map[y][x-1] === 0) neighbors++;
-                    if (map[y][x+1] === 0) neighbors++;
-                    if (neighbors >= 2) map[y][x] = 0;
-                }
-            }
-        }
         map[1][1] = 9;
         let keyPlaced = false;
         while(!keyPlaced) {
-            const kx = Math.floor(width/2 + Math.random() * width/2);
-            const ky = Math.floor(height/2 + Math.random() * height/2);
-            if(ky < height-1 && kx < width-1 && map[ky][kx] === 0) {
+            const kx = Math.floor(Math.random() * (width - 2)) + 1;
+            const ky = Math.floor(Math.random() * (height - 2)) + 1;
+            if(map[ky][kx] === 0 && (kx + ky > 12)) {
                 map[ky][kx] = 2;
                 keyPlaced = true;
             }
         }
         let exitPlaced = false;
         while(!exitPlaced) {
-            const ex = Math.floor(Math.random() * width/2 + width/2); 
-            const ey = Math.floor(Math.random() * height/2); 
-            if(ey > 0 && ex < width-1 && map[ey][ex] === 0) {
+            const ex = Math.floor(Math.random() * (width - 2)) + 1;
+            const ey = Math.floor(Math.random() * (height - 2)) + 1;
+            if(map[ey][ex] === 0 && map[ey][ex] !== 2 && (ex + ey > 8)) {
                 map[ey][ex] = 3;
                 exitPlaced = true;
             }
@@ -596,22 +553,12 @@ const Game = {
         const boxGeo = new THREE.BoxGeometry(2, 4, 2);
         const wallMat = new THREE.MeshStandardMaterial({ map: this.wallTexture, roughness: 0.9 });
         const wallMesh = new THREE.InstancedMesh(boxGeo, wallMat, wallCount);
-        wallMesh.castShadow = true;
-        wallMesh.receiveShadow = true;
         const dummy = new THREE.Object3D();
         let i = 0;
         const keyGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
         const keyMat = new THREE.MeshBasicMaterial({color: 0xaa0000});
         const doorGeo = new THREE.BoxGeometry(2, 4, 0.5);
-        const doorMat = new THREE.MeshStandardMaterial({ color: 0x225522, roughness: 0.2, metalness: 0.8 });
-        
-        const normalColor = new THREE.Color(0xffffff);
-        const bloodColor = new THREE.Color(0x884444); 
-        const darkColor = new THREE.Color(0x555555); 
-
-        const lampGeo = new THREE.BoxGeometry(0.5, 0.1, 0.5);
-        const lampMat = new THREE.MeshBasicMaterial({ color: 0x555555 });
-
+        const doorMat = new THREE.MeshStandardMaterial({ color: 0x225522 });
         for(let z=0; z<mapH; z++) {
             for(let x=0; x<mapW; x++) {
                 const type = this.mapData[z][x];
@@ -619,27 +566,7 @@ const Game = {
                     dummy.position.set(x*2, 2, z*2);
                     dummy.updateMatrix();
                     wallMesh.setMatrixAt(i, dummy.matrix);
-                    
-                    const rand = Math.random();
-                    if(rand < 0.05) wallMesh.setColorAt(i, bloodColor); 
-                    else if(rand < 0.2) wallMesh.setColorAt(i, darkColor); 
-                    else wallMesh.setColorAt(i, normalColor);
-                    
                     i++;
-                } else if (type === 0) {
-                    // Optimization: Reduced flickering lights probability (0.015) and removed shadow casting
-                    if (Math.random() < 0.015) { 
-                        const lamp = new THREE.Mesh(lampGeo, lampMat);
-                        lamp.position.set(x*2, 3.95, z*2); 
-                        this.scene.add(lamp);
-
-                        const bulb = new THREE.PointLight(0xaaddff, 1, 10);
-                        bulb.position.set(0, -0.2, 0);
-                        bulb.castShadow = false; // Disable shadows for performance
-                        lamp.add(bulb);
-                        
-                        this.flickeringLights.push({ light: bulb, baseInt: 1.0, pos: lamp.position });
-                    }
                 } else if (type === 9) {
                     this.camera.position.set(x*2, 1.7, z*2);
                 } else if (type === 2) {
@@ -648,12 +575,9 @@ const Game = {
                     keyMesh.name = "kunci_gudang";
                     this.scene.add(keyMesh);
                     this.objects.push(keyMesh);
-                    
                     const keyLight = new THREE.PointLight(0xff0000, 1.5, 15);
-                    keyLight.castShadow = false;
                     keyMesh.add(keyLight);
                     this.keyMesh = keyMesh; 
-                    
                 } else if (type === 3) {
                     const door = new THREE.Mesh(doorGeo, doorMat);
                     door.position.set(x*2, 2, z*2);
@@ -663,8 +587,6 @@ const Game = {
                 }
             }
         }
-        wallMesh.instanceMatrix.needsUpdate = true;
-        if(wallMesh.instanceColor) wallMesh.instanceColor.needsUpdate = true;
         this.scene.add(wallMesh);
     },
     showSubtitle: function(text, duration=3000) {
@@ -682,19 +604,14 @@ const Game = {
                 if(obj.name === "kunci_gudang") {
                     this.scene.remove(obj);
                     this.hasKey = true;
-                    AudioEngine.playStep();
                     this.showSubtitle("Dapat Kunci! Sekarang cari PINTU KELUAR!", 5000);
                     setTimeout(() => this.triggerEvent(2), 1000); 
                 } else if (obj.name === "pintu_keluar") {
                     if(this.hasKey) {
-                        this.showSubtitle("Membuka pintu...", 2000);
-                        setTimeout(() => {
-                            alert("SELAMAT! ANDA BERHASIL KELUAR HIDUP-HIDUP.");
-                            location.reload();
-                        }, 1000);
+                        alert("SELAMAT! ANDA BERHASIL KELUAR.");
+                        location.reload();
                     } else {
-                        this.showSubtitle("Terkunci. Aku butuh kunci berkarat.");
-                        AudioEngine.playStep(); 
+                        this.showSubtitle("Terkunci.");
                     }
                 }
             }
@@ -702,29 +619,18 @@ const Game = {
     },
     triggerEvent: function(id) {
         if(id === 1) {
-            this.showSubtitle("Tempat ini sangat luas... aku harus mencari jalan keluar.");
+            this.showSubtitle("Tempat ini terasa sangat sempit...");
             AudioEngine.playAmbience();
-        } 
-        else if (id === 2) {
+        } else if (id === 2) {
             this.enemy.setAggressive();
-            this.showSubtitle("DIA MARAH!! LARI KE PINTU!", 4000);
-            let flickerCount = 0;
-            const flickerInterval = setInterval(() => {
-                this.flashlight.intensity = Math.random() > 0.5 ? 0 : 1.5;
-                flickerCount++;
-                if(flickerCount > 10) {
-                    clearInterval(flickerInterval);
-                    this.flashlight.intensity = 1.5;
-                }
-            }, 100);
-        }
-        else if (id === 3) {
+            this.showSubtitle("LARI!", 4000);
+        } else if (id === 3) {
             this.controls.unlock();
             const overlay = document.getElementById('scare-overlay');
             overlay.style.display = 'flex';
             AudioEngine.playScream();
             setTimeout(() => {
-                alert("GAME OVER - JANTUNG ANDA BERHENTI");
+                alert("GAME OVER");
                 location.reload();
             }, 2500);
         }
@@ -739,43 +645,10 @@ const Game = {
         ctx.fillRect(0, 0, c.width, c.height);
         const pX = this.camera.position.x / 2;
         const pZ = this.camera.position.z / 2;
-        const range = 8; 
-        for(let z = Math.floor(pZ - range); z <= Math.ceil(pZ + range); z++) {
-            for(let x = Math.floor(pX - range); x <= Math.ceil(pX + range); x++) {
-                if(z >= 0 && z < this.mapData.length && x >= 0 && x < this.mapData[0].length) {
-                    const type = this.mapData[z][x];
-                    const dx = (x - pX) * scale;
-                    const dz = (z - pZ) * scale;
-                    if(type === 1) { 
-                        ctx.fillStyle = '#448844';
-                        ctx.fillRect(cx + dx, cy + dz, scale, scale);
-                    } else if (type === 3) { 
-                        ctx.fillStyle = '#00ff00';
-                        ctx.fillRect(cx + dx, cy + dz, scale, scale);
-                    }
-                }
-            }
-        }
         ctx.fillStyle = '#fff';
         ctx.beginPath();
         ctx.arc(cx, cy, 3, 0, Math.PI*2);
         ctx.fill();
-        
-        this.camera.getWorldDirection(this._vecForward);
-        const angle = Math.atan2(this._vecForward.z, this._vecForward.x); 
-
-        ctx.save();
-        ctx.translate(cx, cy);
-        ctx.rotate(angle); 
-        ctx.beginPath();
-        ctx.moveTo(8, 0);   
-        ctx.lineTo(-4, 4);  
-        ctx.lineTo(-4, -4); 
-        ctx.closePath();
-        ctx.fillStyle = '#0f0'; 
-        ctx.fill();
-        ctx.restore();
-
         if(this.enemy.active) {
             const eX = this.enemy.mesh.position.x / 2;
             const eZ = this.enemy.mesh.position.z / 2;
@@ -806,25 +679,14 @@ const Game = {
                     const closeZ = Math.max(minZ, Math.min(pZ, maxZ));
                     const dX = pX - closeX;
                     const dZ = pZ - closeZ;
-                    const distSq = (dX*dX) + (dZ*dZ);
-                    if (distSq < (radius * radius)) {
-                        return true; 
-                    }
+                    if ((dX*dX) + (dZ*dZ) < (radius * radius)) return true; 
                 }
             }
         }
         return false;
     },
     prevTime: performance.now(),
-    velocity: new THREE.Vector3(),
-    direction: new THREE.Vector3(),
-    stepTimer: 0, heartbeatTimer: 0, storyStep: 0,
-    checkEvents: function() {
-        if(this.storyStep === 0 && performance.now() > 2000) {
-            this.triggerEvent(1);
-            this.storyStep = 1;
-        }
-    },
+    stepTimer: 0, heartbeatTimer: 0,
     animate: function() {
         requestAnimationFrame(() => this.animate());
         this.drawMinimap();
@@ -835,161 +697,64 @@ const Game = {
             if (this.isSprinting && isMoving && this.stamina > 0) {
                 this.currentSpeed = this.runSpeed;
                 this.stamina -= 25 * delta; 
-                if (this.stamina < 0) this.stamina = 0;
             } else {
                 this.currentSpeed = this.walkSpeed;
-                if (this.stamina < this.maxStamina) {
-                    this.stamina += 15 * delta; 
-                }
+                if (this.stamina < this.maxStamina) this.stamina += 15 * delta; 
             }
-            const bar = document.getElementById('stamina-bar');
-            bar.style.width = (this.stamina / this.maxStamina * 100) + '%';
-            if(this.stamina < 20) bar.style.backgroundColor = '#500';
-            else bar.style.backgroundColor = '#a00';
-            
-            if (!this.hasKey && this.keyMesh) {
-                this.keyMesh.children[0].intensity = 1.0 + Math.sin(time * 0.003) * 0.5;
-                const distToKey = this.camera.position.distanceTo(this.keyMesh.position);
-                if (distToKey < 25 && Math.random() < 0.002) { 
-                    const hints = [
-                        "Aku mencium bau besi berkarat...",
-                        "Ada cahaya merah samar di lorong ini...",
-                        "Kuncinya pasti dekat...",
-                        "Perasaanku mengatakan arah ini benar..."
-                    ];
-                    const sub = document.getElementById('subtitle');
-                    if (sub.style.opacity == 0) {
-                        this.showSubtitle(hints[Math.floor(Math.random() * hints.length)], 3000);
-                    }
-                }
-            }
-
-            // Optimization: Culling lights based on distance
-            const pPos = this.camera.position;
-            for (const fl of this.flickeringLights) {
-                const dist = pPos.distanceTo(fl.pos);
-                if (dist < 15) { // Only active if close
-                    if (Math.random() > 0.95) { 
-                        fl.light.intensity = 0.1;
-                    } else {
-                        fl.light.intensity = fl.baseInt + (Math.random() * 0.5 - 0.25);
-                    }
-                    fl.light.visible = true;
-                } else {
-                    fl.light.visible = false;
-                }
-            }
-
-            // Using Reusable Vectors
+            document.getElementById('stamina-bar').style.width = (this.stamina / this.maxStamina * 100) + '%';
             this.camera.getWorldDirection(this._vecForward);
             this._vecForward.y = 0;
             this._vecForward.normalize();
             this._vecRight.crossVectors(this._vecForward, new THREE.Vector3(0, 1, 0)).normalize();
-            const dist = this.currentSpeed * delta;
-            
             this._vecMove.set(0,0,0);
             if (this.moveForward) this._vecMove.add(this._vecForward);
             if (this.moveBackward) this._vecMove.sub(this._vecForward);
             if (this.moveRight) this._vecMove.add(this._vecRight);
             if (this.moveLeft) this._vecMove.sub(this._vecRight);
-            
-            // Movement Sliding
+            const dist = this.currentSpeed * delta;
             const oldX = this.camera.position.x;
             this.camera.position.x += this._vecMove.x * dist;
-            if (this.checkCollision(this.camera.position)) {
-                this.camera.position.x = oldX; 
-            }
+            if (this.checkCollision(this.camera.position)) this.camera.position.x = oldX; 
             const oldZ = this.camera.position.z;
             this.camera.position.z += this._vecMove.z * dist;
-            if (this.checkCollision(this.camera.position)) {
-                this.camera.position.z = oldZ; 
-            }
-
-            // Bounds
-            const maxX = (this.mapData[0].length * 2) - 1;
-            const maxZ = (this.mapData.length * 2) - 1;
-            if(this.camera.position.x < 1) this.camera.position.x = 1;
-            if(this.camera.position.z < 1) this.camera.position.z = 1;
-            if(this.camera.position.x > maxX) this.camera.position.x = maxX;
-            if(this.camera.position.z > maxZ) this.camera.position.z = maxZ;
-
+            if (this.checkCollision(this.camera.position)) this.camera.position.z = oldZ; 
             if(isMoving) {
                 this.stepTimer += delta;
-                const bobFreq = this.isSprinting && this.stamina > 0 ? 0.02 : 0.01;
-                this.camera.position.y = 1.7 + Math.sin(time * bobFreq) * 0.05;
-                const stepInterval = this.isSprinting && this.stamina > 0 ? 0.3 : 0.5;
-                if(this.stepTimer > stepInterval) {
+                if(this.stepTimer > (this.isSprinting ? 0.3 : 0.5)) {
                     AudioEngine.playStep(this.isSprinting ? 1.5 : 1.0); 
                     this.stepTimer = 0;
                 }
-            } else {
-                this.camera.position.y = 1.7;
             }
-            const playerIsRunning = this.isSprinting && isMoving && this.stamina > 0;
-            if(this.enemy) this.enemy.update(delta, this.camera.position, playerIsRunning);
-            this.raycaster.setFromCamera(new THREE.Vector2(0,0), this.camera);
-            const intersects = this.raycaster.intersectObjects(this.objects);
-            const prompt = document.getElementById('interact-prompt');
-            if(intersects.length > 0 && intersects[0].distance < 4) {
-                prompt.style.opacity = 1;
-            } else {
-                prompt.style.opacity = 0;
-            }
+            if(this.enemy) this.enemy.update(delta, this.camera.position, this.isSprinting && isMoving);
             if(this.enemy.active) {
                 document.body.classList.add('red-pulse');
-                const dist = this.camera.position.distanceTo(this.enemy.mesh.position);
-                const beatSpeed = Math.max(0.2, dist / 20); 
+                const d = this.camera.position.distanceTo(this.enemy.mesh.position);
                 this.heartbeatTimer += delta;
-                if(this.heartbeatTimer > beatSpeed) {
+                if(this.heartbeatTimer > Math.max(0.2, d / 20)) {
                     AudioEngine.playHeartbeat();
                     this.heartbeatTimer = 0;
                 }
             }
-            this.checkEvents();
             this.prevTime = time;
         }
         this.renderer.render(this.scene, this.camera);
     }
 };
-const cutsceneLines = [
-    "14 Oktober 1998...",
-    "Aku menerima surat aneh tentang 'Fasilitas 09'.",
-    "Katanya tempat ini sudah ditinggalkan...",
-    "Tapi saat aku melangkah masuk, pintu besi terbanting sendiri.",
-    "Terkunci rapat.",
-    "Bau amis darah menyeruak...",
-    "Dan aku mendengar sesuatu bernapas di kegelapan."
-];
-function playCutscene() {
-    document.getElementById('start-screen').style.display = 'none';
-    const introScreen = document.getElementById('intro-screen');
-    const introText = document.getElementById('intro-text');
-    const continueBtn = document.getElementById('continue-btn');
-    introScreen.style.display = 'flex';
-    AudioEngine.init(); 
-    let delay = 0;
-    cutsceneLines.forEach((line, index) => {
-        setTimeout(() => {
-            introText.innerText = line;
-            introText.style.opacity = 1;
-            if(index === 0) AudioEngine.playAmbience(); 
-        }, delay);
-        delay += 3000; 
-        setTimeout(() => {
-            introText.style.opacity = 0;
-        }, delay - 500); 
-    });
-    setTimeout(() => {
-        continueBtn.style.display = 'block';
-    }, delay);
-}
 document.getElementById('start-btn').addEventListener('click', () => {
-    playCutscene();
+    document.getElementById('start-screen').style.display = 'none';
+    const intro = document.getElementById('intro-screen');
+    intro.style.display = 'flex';
+    AudioEngine.init();
+    let text = document.getElementById('intro-text');
+    text.innerText = "Aku terjebak di sini...";
+    text.style.opacity = 1;
+    setTimeout(() => { document.getElementById('continue-btn').style.display = 'block'; }, 2000);
 });
 document.getElementById('continue-btn').addEventListener('click', () => {
     document.getElementById('intro-screen').style.display = 'none';
     Game.init();
     Game.controls.lock();
+    Game.triggerEvent(1);
 });
 </script>
 </body>
